@@ -1,3 +1,4 @@
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from pymongo import MongoClient
@@ -10,6 +11,7 @@ import numpy as np
 import requests
 import io
 import traceback
+import os
 
 app = Flask(__name__)
 CORS(app)
