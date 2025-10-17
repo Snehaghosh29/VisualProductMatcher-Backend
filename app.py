@@ -1,17 +1,15 @@
-
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from pymongo import MongoClient
 from tensorflow.keras.applications.mobilenet_v2 import MobileNetV2, preprocess_input
 from tensorflow.keras.preprocessing import image
-from tensorflow.keras.models import Model
 from sklearn.metrics.pairwise import cosine_similarity
 from PIL import Image
 import numpy as np
 import requests
 import io
 import traceback
-import os
+import os  # ✅ Make sure this import is present
 
 app = Flask(__name__)
 CORS(app)
@@ -28,7 +26,6 @@ model = MobileNetV2(weights="imagenet", include_top=False, pooling="avg")
 print("✅ Model loaded successfully!")
 
 def extract_features(img: Image.Image):
-    """Extract feature embedding using MobileNetV2"""
     img = img.resize((224, 224))
     img_array = image.img_to_array(img)
     img_array = np.expand_dims(img_array, axis=0)
@@ -46,7 +43,6 @@ def match_products():
     try:
         img = None
 
-        # CASE 1: File upload
         if "image" in request.files:
             file = request.files["image"]
             if not file:
@@ -54,7 +50,6 @@ def match_products():
             img_bytes = file.read()
             img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
 
-        # CASE 2: URL upload
         elif "imageUrl" in request.form and request.form["imageUrl"]:
             img_url = request.form["imageUrl"]
             response = requests.get(img_url, timeout=10)
@@ -62,14 +57,10 @@ def match_products():
                 return jsonify({"error": "Could not download image"}), 400
             img = Image.open(io.BytesIO(response.content)).convert("RGB")
 
-        # Missing image case
         else:
             return jsonify({"error": "No image provided"}), 400
 
-        # Generate embedding for query image
         query_vector = extract_features(img)
-
-        # Get products with embeddings
         products = list(collection.find({"embedding": {"$exists": True}}))
 
         if not products:
@@ -81,10 +72,8 @@ def match_products():
             score = float(cosine_similarity([query_vector], [emb])[0][0])
             similarities.append((p, score))
 
-        # Sort by similarity
         similarities.sort(key=lambda x: x[1], reverse=True)
 
-        # Apply filters
         filters = {
             "category": request.form.get("category"),
             "brand": request.form.get("brand"),
@@ -95,7 +84,7 @@ def match_products():
         }
 
         results = []
-        for p, score in similarities[:10]:  # top 10 results
+        for p, score in similarities[:10]:
             price = p.get("price", 0)
 
             if filters["category"] and p.get("category") != filters["category"]:
@@ -115,11 +104,10 @@ def match_products():
             p["similarity"] = round(score, 3)
             results.append(p)
 
-        # ✅ Handle no matches gracefully
         if not results:
             return jsonify({
                 "results": [],
-                "message": "No similar products found. Try uploading another image or different filters."
+                "message": "No similar products found. Try another image or filters."
             }), 200
 
         return jsonify({"results": results, "message": "Matches found!"})
